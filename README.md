@@ -134,4 +134,3 @@ ESP32-Robot-Arm-Control/
 ```
 
 
-### 🚀 Happy Hacking & Enjoy Building Smart Robotics! 🚀
