@@ -34,11 +34,11 @@ bool recordSteps = false;
 bool playRecordedSteps = false;
 
 unsigned long previousTimeInMilli = millis();
-
+//web socket setup and wifi access point 
 const char* ssid     = "RobotArm";
 const char* password = "12345678";
 
-AsyncWebServer server(80);
+AsyncWebServer server(80);// AsyncWebServer listens on port 80.
 AsyncWebSocket wsRobotArmInput("/RobotArmInput");
 
 const char* htmlHomePage PROGMEM = R"HTMLHOMEPAGE(
@@ -232,17 +232,20 @@ const char* htmlHomePage PROGMEM = R"HTMLHOMEPAGE(
   </body>    
 </html>
 )HTMLHOMEPAGE";
+//handleRoot(): Serves the HTML page.
 
 void handleRoot(AsyncWebServerRequest *request) 
 {
   request->send_P(200, "text/html", htmlHomePage);
 }
 
+//handleNotFound(): Displays a 404 error for unknown requests.
 void handleNotFound(AsyncWebServerRequest *request) 
 {
     request->send(404, "text/plain", "File Not Found");
 }
 
+//WebSocket Event Handling:
 void onRobotArmInputWebSocketEvent(AsyncWebSocket *server, 
                       AsyncWebSocketClient *client, 
                       AwsEventType type,
@@ -267,12 +270,13 @@ void onRobotArmInputWebSocketEvent(AsyncWebSocket *server,
         std::string myData = "";
         myData.assign((char *)data, len);
         std::istringstream ss(myData);
-        std::string key, value;
+        std::string key, value;  //Parses the key,value from the browser.
         std::getline(ss, key, ',');
         std::getline(ss, value, ',');
-        Serial.printf("Key [%s] Value[%s]\n", key.c_str(), value.c_str()); 
+        Serial.printf("Key [%s] Value[%s]\n", key.c_str(), value.c_str());   //Parses the key,value from the browser.
         int valueInt = atoi(value.c_str()); 
-        
+          //Starts/stops recording or playback depending on the command.
+
         if (key == "Record")
         {
           recordSteps = valueInt;
@@ -288,7 +292,7 @@ void onRobotArmInputWebSocketEvent(AsyncWebSocket *server,
         }
         else if (key == "Base")
         {
-          writeServoValues(0, valueInt);            
+          writeServoValues(0, valueInt);       //Adjusts the corresponding servo.    
         } 
         else if (key == "Shoulder")
         {
@@ -322,7 +326,7 @@ void sendCurrentRobotArmState()
   wsRobotArmInput.textAll(String("Record,") + (recordSteps ? "ON" : "OFF"));
   wsRobotArmInput.textAll(String("Play,") + (playRecordedSteps ? "ON" : "OFF"));  
 }
-
+// Updating Servo State:
 void writeServoValues(int servoIndex, int value)
 {
   if (recordSteps)
@@ -343,11 +347,11 @@ void writeServoValues(int servoIndex, int value)
     recordedStep.value = value; 
     recordedStep.delayInStep = currentTime - previousTimeInMilli;
     recordedSteps.push_back(recordedStep);  
-    previousTimeInMilli = currentTime;         
+    previousTimeInMilli = currentTime;           //If recording is enabled, it logs the step with a timestamp.
   }
   servoPins[servoIndex].servo.write(value);   
 }
-
+//Replays the previously recorded servo movements with the recorded delays.
 void playRecordedRobotArmSteps()
 {
   if (recordedSteps.size() == 0)
@@ -378,6 +382,7 @@ void playRecordedRobotArmSteps()
   }
 }
 
+//Attaches each servo to its GPIO pin and moves it to the initial position.
 void setUpPinModes()
 {
   for (int i = 0; i < servoPins.size(); i++)
@@ -390,29 +395,29 @@ void setUpPinModes()
 
 void setup(void) 
 {
-  setUpPinModes();
-  Serial.begin(115200);
+  setUpPinModes();  // Sets up the servo pins.
+  Serial.begin(115200); // Starts the Serial monitor.
 
-  WiFi.softAP(ssid, password);
+  WiFi.softAP(ssid, password);  //Initializes Wi-Fi Access Point.
   IPAddress IP = WiFi.softAPIP();
   Serial.print("AP IP address: ");
   Serial.println(IP);
 
-  server.on("/", HTTP_GET, handleRoot);
+  server.on("/", HTTP_GET, handleRoot); 
   server.onNotFound(handleNotFound);
       
-  wsRobotArmInput.onEvent(onRobotArmInputWebSocketEvent);
+  wsRobotArmInput.onEvent(onRobotArmInputWebSocketEvent); //Starts the AsyncWebServer and WebSocket.
   server.addHandler(&wsRobotArmInput);
 
   server.begin();
   Serial.println("HTTP server started");
 
 }
-
+//Continuously services WebSocket clients.
 void loop() 
 {
   wsRobotArmInput.cleanupClients();
-  if (playRecordedSteps)
+  if (playRecordedSteps) //If "Play" mode is active, executes the playback function.
   { 
     playRecordedRobotArmSteps();
   }
